@@ -15,7 +15,7 @@ def GMD(year=None, quarter=None, country=None):
     
     Parameters:
     - year (int): The desired year (e.g., 2025). If None, the latest dataset is used.
-    - quarter (int): The quarter (1, 3, 6, 9). If None, the latest dataset is used.
+    - quarter (int): The quarter (1, 3, 6, 9, 12). If None, the latest dataset is used.
     - country (str): ISO3 country code (e.g., "CHN"). If None, returns all countries.
     
     Returns:

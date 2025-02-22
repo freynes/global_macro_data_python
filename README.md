@@ -35,17 +35,16 @@ pip install global_macro_data
 
 **How to use (an example)**
 ```
-import global_macro_data as gmd
-df = gmd.get_data(start_year=2000, end_year=2010, country=['United States','France','Germany','China'])
+from global_macro_data import GMD
+df = GMD(2025, 1)
 # You can also use ISO3 for retrieval.
-df = gmd.get_data(start_year=2000, end_year=2010, ISO3=['USA','FRA','DEU','CHN'])
+df = GMD(2025, 1, 'USA')
 ```
 
 ## Parameters
-- **start_year (int)**: Filter data from this starting year (inclusive).
-- **end_year (int)**: Filter data up to this ending year (inclusive).
-- **country (str, list, or comma-separated string)**: Filter data by country name(s).
-- **ISO3 (str or list)**: Filter data by ISO3 country code(s).
+- **year (int)**: The desired year (e.g., 2025). If None, the latest dataset is used.
+- **quarter (int)**: The quarter (1, 3, 6, 9, 12). If None, the latest dataset is used.
+- **country (str)**: ISO3 country code (e.g., "USA"). If None, returns all countries.
 
 ## Release schedule 
 

@@ -36,6 +36,7 @@ pip install global_macro_data
 **How to use (an example)**
 ```
 from global_macro_data import GMD
+# Get data from v2025-01
 df = GMD(2025, 1)
 # You can also use ISO3 for retrieval.
 df = GMD(2025, 1, 'USA')

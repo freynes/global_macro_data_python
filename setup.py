@@ -10,12 +10,14 @@ from setuptools import setup, find_packages
 
 setup(
     name="global_macro_data",
-    version="0.2.1",
+    version="0.3.0",
     packages=find_packages(),
+    package_data={
+        "global_macro_data": ["isomapping.csv"],
+    },
     install_requires=[
         "requests",
-        "pandas",
-        "pycountry"
+        "pandas"
     ],
     author="Yangbo Wang",
     author_email="wangyangbo@ruc.edu.cn",

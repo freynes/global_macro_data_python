@@ -7,12 +7,7 @@
 
 [Link to paper 📄](https://www.globalmacrodata.com/research-paper.html)
 
-
-
 This repository complements paper, **Müller, Xu, Lehbib, and Chen (2025)**, which introduces a panel dataset of **46 macroeconomic variables across 243 countries** from historical records beginning in the year **1086** until **2024**, including projections through the year **2030**.
-
-
-
 
 ## Features
 
@@ -33,19 +28,34 @@ This repository complements paper, **Müller, Xu, Lehbib, and Chen (2025)**, whi
 pip install global_macro_data
 ```
 
-**How to use (an example)**
-```
-from global_macro_data import GMD
-# Get data from v2025-01
-df = GMD(2025, 1)
-# You can also use ISO3 for retrieval.
-df = GMD(2025, 1, 'USA')
+**How to use (examples)**
+```python
+from global_macro_data import gmd
+
+# Get data from latest available version
+df = gmd()
+
+# Get data from a specific version
+df = gmd(version="2025_01")
+
+# Get data for a specific country
+df = gmd(country="USA")
+
+# Get data for multiple countries
+df = gmd(country=["USA", "CHN", "DEU"])
+
+# Get specific variables
+df = gmd(variables=["rGDP", "infl", "unemp"])
+
+# Combine parameters
+df = gmd(version="2025_01", country=["USA", "CHN"], variables=["rGDP", "unemp", "CPI"])
 ```
 
 ## Parameters
-- **year (int)**: The desired year (e.g., 2025). If None, the latest dataset is used.
-- **quarter (int)**: The quarter (1, 3, 6, 9, 12). If None, the latest dataset is used.
-- **country (str)**: ISO3 country code (e.g., "USA"). If None, returns all countries.
+- **version (str)**: Dataset version in format 'YYYY_MM' (e.g., '2025_01'). If None, the latest dataset is used.
+- **country (str or list)**: ISO3 country code(s) (e.g., "SGP" or ["MRT", "SGP"]). If None, returns all countries.
+- **variables (list)**: List of variable codes to include (e.g., ["rGDP", "unemp"]). If None, all variables are included.
+- **show_preview (bool)**: If True and no other parameters are provided, shows a preview.
 
 ## Release schedule 
 
@@ -56,8 +66,6 @@ df = GMD(2025, 1, 'USA')
 | 2025-07-01   | v2025-09         |
 | 2025-10-01   | v2025-12         |
 | 2026-01-01   | v2026-03         |
-
-
 
 ## Citation
 

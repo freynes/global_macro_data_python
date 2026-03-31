@@ -1,10 +1,19 @@
-import os
-import requests
-import pandas as pd
+from .gmd import (
+    GMDCommandError,
+    gmd,
+    get_available_versions,
+    get_current_version,
+    list_variables,
+    list_countries,
+    VALID_VARIABLES
+)
 
-# Allowed quarters
-VALID_QUARTERS = ["01", "03", "06", "09", "12"]
-
-from .gmd import gmd, find_latest_data
-
-__all__ = ["gmd", "find_latest_data", "VALID_QUARTERS"]
+__all__ = [
+    "gmd",
+    "GMDCommandError",
+    "get_available_versions",
+    "get_current_version",
+    "list_variables",
+    "list_countries",
+    "VALID_VARIABLES"
+]

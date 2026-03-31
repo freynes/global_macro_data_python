@@ -1,4 +1,4 @@
-﻿from pathlib import Path
+from pathlib import Path
 
 from setuptools import find_packages, setup
 
@@ -9,7 +9,7 @@ setup(
     name="global-macro-data",
     version="2.0.0",
     packages=find_packages(),
-    package_data={"global_macro_data": ["isomapping.csv"]},
+    package_data={},
     install_requires=["requests", "pandas"],
     author="Yangbo Wang",
     author_email="wangyangbo@ruc.edu.cn",
@@ -25,5 +25,5 @@ setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    python_requires=">=3.6",
+    python_requires=">=3.8",
 )

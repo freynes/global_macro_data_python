@@ -19,18 +19,37 @@ class _LocalResponse:
         return None
 
 
+def _clear_all_caches():
+    for cache_fn in (
+        gmd_module._versions_df,
+        gmd_module._varlist_df,
+        gmd_module._source_list_df,
+        gmd_module._bib_df,
+        gmd_module._country_df,
+    ):
+        if hasattr(cache_fn, "cache_clear"):
+            cache_fn.cache_clear()
+
+
 @pytest.fixture(autouse=True)
 def local_data_backend(monkeypatch):
     """Route all GMD fetches to local Stata repo files for deterministic tests."""
     local_root = REPO_ROOT
-    stata_root = REPO_ROOT.parent / "Global-Macro-Database-Stata-main"
+    stata_root_candidates = [
+        REPO_ROOT.parent / "Global-Macro-Database-Stata-main",
+        REPO_ROOT.parent / "Global-Macro-Database-Stata",
+    ]
 
     if (local_root / "data" / "final").exists() and (local_root / "data" / "clean").exists():
         data_root = local_root
-    elif stata_root.exists():
-        data_root = stata_root
     else:
-        pytest.skip("Global-Macro-Database-Stata-main not found next to Python repo")
+        data_root = None
+        for candidate in stata_root_candidates:
+            if candidate.exists():
+                data_root = candidate
+                break
+        if data_root is None:
+            pytest.skip("Global-Macro-Database-Stata repo not found next to Python repo")
 
     def _map_path(relative_path: str) -> Path:
         rel = relative_path.replace("\\", "/")
@@ -54,24 +73,6 @@ def local_data_backend(monkeypatch):
     monkeypatch.setattr(gmd_module, "_fetch_primary", _fetch_local)
     monkeypatch.setattr(gmd_module, "_fetch_secondary", _fetch_local)
 
-    for cache_fn in (
-        gmd_module._versions_df,
-        gmd_module._varlist_df,
-        gmd_module._source_list_df,
-        gmd_module._bib_df,
-        gmd_module._country_df,
-    ):
-        if hasattr(cache_fn, "cache_clear"):
-            cache_fn.cache_clear()
-
+    _clear_all_caches()
     yield
-
-    for cache_fn in (
-        gmd_module._versions_df,
-        gmd_module._varlist_df,
-        gmd_module._source_list_df,
-        gmd_module._bib_df,
-        gmd_module._country_df,
-    ):
-        if hasattr(cache_fn, "cache_clear"):
-            cache_fn.cache_clear()
+    _clear_all_caches()

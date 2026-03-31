@@ -1,4 +1,4 @@
-﻿
+
 from __future__ import annotations
 
 import io
@@ -25,9 +25,21 @@ _APA_GMD = (
     "The Global Macro Database: A New International Macroeconomic Dataset "
     "(NBER Working Paper No. 33714)."
 )
-_APA_STATA = (
+_APA_PACKAGE = (
     "Lehbib, M. & Müller, K. (2025). gmd: The Easy Way to Access the "
     "World's Most Comprehensive Macroeconomic Database. Working Paper."
+)
+
+_ISSUES_URL = "https://github.com/KMueller-Lab/Global-Macro-Database"
+_UPGRADE_MSG = "There is a new version of the package. Run: pip install --upgrade global-macro-data"
+_NETWORK_HINT = 'If you have active internet access, specify the option: gmd(network="yes")'
+_VARS_HINTS = (
+    'To print the list of variables: gmd(vars="list")',
+    'To load the list of variables: gmd(vars="load")',
+)
+_COUNTRY_HINTS = (
+    'To print the list of countries: gmd(country="list")',
+    'To load the list of countries: gmd(country="load")',
 )
 
 VALID_VARIABLES = [
@@ -61,6 +73,23 @@ def _fail(*lines: str, code: int = 498) -> None:
         _emit(*lines)
         raise GMDCommandError(lines[-1], code=code)
     raise GMDCommandError("gmd failed", code=code)
+
+
+def _fail_with_issue(resource: str, code: int = 498) -> None:
+    _fail(f"Unable to access {resource}. Please raise an issue at {_ISSUES_URL}", code=code)
+
+
+def _fail_needs_internet(action: str) -> None:
+    _fail(f"You need access to the internet in order to {action}", _NETWORK_HINT, code=498)
+
+
+def _sort_versions_df(df: pd.DataFrame) -> pd.DataFrame:
+    parts = df["versions"].astype(str).str.extract(r"(?P<year>\d{4})_(?P<month>\d{2})")
+    df = df.assign(
+        _year=pd.to_numeric(parts["year"], errors="coerce"),
+        _month=pd.to_numeric(parts["month"], errors="coerce"),
+    ).sort_values(["_year", "_month"], ascending=[False, False])
+    return df.drop(columns=["_year", "_month"]).reset_index(drop=True)
 
 
 def _fetch_from(relative_path: str, bases: Sequence[str]) -> requests.Response:
@@ -160,12 +189,7 @@ def _versions_df() -> pd.DataFrame:
     df = _read_csv_primary("helpers/versions.csv")
     if "versions" not in df.columns:
         raise RuntimeError("Malformed versions.csv")
-    parts = df["versions"].astype(str).str.extract(r"(?P<year>\d{4})_(?P<month>\d{2})")
-    df = df.assign(
-        _year=pd.to_numeric(parts["year"], errors="coerce"),
-        _month=pd.to_numeric(parts["month"], errors="coerce"),
-    ).sort_values(["_year", "_month"], ascending=[False, False])
-    return df.drop(columns=["_year", "_month"]).reset_index(drop=True)
+    return _sort_versions_df(df)
 
 
 @lru_cache(maxsize=1)
@@ -194,14 +218,11 @@ def _format_bibtex_for_print(entry: str) -> str:
 
 
 def _print_var_table(df: pd.DataFrame) -> None:
-    table = df.copy()
+    table = df
     if "variable" not in table.columns and "variables" in table.columns:
-        table = table.rename(columns={"variables": "variable"})
+        table = table.rename(columns={"variables": "variable"})  # rename returns a new DataFrame
     if not {"variable", "definition", "units"}.issubset(table.columns):
-        _fail(
-            'Unable to access variable list. Please raise an issue at {browse "https://github.com/KMueller-Lab/Global-Macro-Database-Stata"}.',
-            code=498,
-        )
+        _fail_with_issue("variable list")
 
     varlength = int(table["variable"].astype(str).str.len().max()) + 2
     deflength = int(table["definition"].astype(str).str.len().max()) + varlength + 2
@@ -225,10 +246,7 @@ def _print_var_table(df: pd.DataFrame) -> None:
 
 def _print_country_table(df: pd.DataFrame) -> None:
     if not {"countryname", "ISO3"}.issubset(df.columns):
-        _fail(
-            'Unable to access country list. Please raise an issue at {browse "https://github.com/KMueller-Lab/Global-Macro-Database-Stata"}.',
-            code=498,
-        )
+        _fail_with_issue("country list")
     _emit("", "Available countries:", "")
     _emit("-" * 90)
     _emit("ISO3 code  Country name")
@@ -249,7 +267,6 @@ def _summary(
     fast: Optional[Union[str, bool]],
     saved_gmd: bool,
 ) -> None:
-    df = df.dropna(axis=1, how="all")
     n_vars = len(df.columns)
     for ident in _ID_COLS:
         if ident in df.columns:
@@ -260,19 +277,19 @@ def _summary(
         return
 
     _emit("Global Macro Database by Müller, Xu, Lehbib, and Chen (2025)")
-    _emit('Website: {browse "https://www.globalmacrodata.com"}')
+    _emit("Website: https://www.globalmacrodata.com")
     _emit("")
     _emit("When using these data, please cite:")
-    _emit('{stata gmd, cite(GMD):[BibTeX code]} {stata gmd, print(GMD): [APA-style citation]}')
+    _emit('For BibTeX: gmd(cite="GMD")  |  For APA: gmd(print_option="GMD")')
     _emit("")
-    _emit("When using the gmd Stata command, please further cite:")
-    _emit('{stata gmd, cite(lehbib2025gmd):[BibTeX code]} {stata gmd, print(Stata): [APA-style citation]}')
+    _emit("When using the gmd command, please further cite:")
+    _emit('For BibTeX: gmd(cite="lehbib2025gmd")  |  For APA: gmd(print_option="Stata")')
     _emit("")
 
     if (fast is None or str(fast).strip() == "") and (not saved_gmd) and (not raw):
         _emit(
             f"To save the data locally for faster reloading, use: "
-            f"{{stata gmd, version({selected_version}) fast(yes):gmd, version({selected_version}) fast(yes)}}"
+            f'gmd(version="{selected_version}", fast="yes")'
         )
 
     if raw or (sources is not None and str(sources) != ""):
@@ -292,8 +309,7 @@ def _summary(
 def _normalize_source_name(source: str) -> str:
     source = source.strip()
     if len(source) == 7 and source.startswith("CS"):
-        # Mirror Stata alias rewrite exactly:
-        # local sources = substr("`sources'", -3, 3) + "_" + substr("`sources'", 3, 1)
+        # Convert CS-prefixed 7-char alias e.g. "CS1_ARG" → "ARG_1"
         return f"{source[-3:]}_{source[2]}"
     return source
 
@@ -379,26 +395,25 @@ def gmd(
             _emit(_APA_GMD)
             return None
         if option == "stata":
-            _emit(_APA_STATA)
+            _emit(_APA_PACKAGE)
             return None
         _fail("Invalid option for print(). valid arguments are 'GMD' or 'Stata'.", code=198)
 
     selected_version = ""
     available_versions: List[str] = []
-    internet = "Yes"
+    has_internet = True
     gmd_local_path: Optional[Path] = None
     saved_gmd = False
 
     try:
         versions_df = _versions_df()
         selected_version = str(versions_df.loc[0, "versions"])
-        latest_version = selected_version
         available_versions = sorted(set(versions_df["versions"].astype(str).tolist()))
 
         if "version_package" in versions_df.columns:
             package_remote = str(versions_df.loc[0, "version_package"])
             if package_remote != PACKAGE_VERSION:
-                _emit("There is a new version of the package. {stata ssc install gmd, replace:Click here to update.}")
+                _emit(_UPGRADE_MSG)
 
         if version == "list":
             for ver in available_versions:
@@ -415,7 +430,6 @@ def gmd(
             if requested in available_versions:
                 selected_version = requested
             elif requested == "current":
-                selected_version = latest_version
                 _emit(f"Current version: {selected_version}")
             else:
                 _fail(
@@ -430,19 +444,15 @@ def gmd(
         try:
             versions_gh = _read_csv(_fetch_secondary("helpers/versions.csv"))
             if "versions" in versions_gh.columns and "version_package" in versions_gh.columns:
-                parts = versions_gh["versions"].astype(str).str.extract(r"(?P<year>\d{4})_(?P<month>\d{2})")
-                versions_gh = versions_gh.assign(
-                    _year=pd.to_numeric(parts["year"], errors="coerce"),
-                    _month=pd.to_numeric(parts["month"], errors="coerce"),
-                ).sort_values(["_year", "_month"], ascending=[False, False])
+                versions_gh = _sort_versions_df(versions_gh)
                 package_remote = str(versions_gh.iloc[0]["version_package"])
                 if package_remote != PACKAGE_VERSION:
-                    _emit("There is a new version of the package. {stata ssc install gmd, replace:Click here to update.}")
-                    _emit('Please raise an issue if the update does not work at {browse "https://github.com/KMueller-Lab/Global-Macro-Database-Stata"}.')
+                    _emit(_UPGRADE_MSG)
+                    _emit(f"Please raise an issue if the update does not work at {_ISSUES_URL}")
         except RuntimeError:
             pass
 
-        internet = "NaN" if (network is not None and str(network) != "") else "No"
+        has_internet = network is not None and str(network) != ""
         _emit("Error: Unable to access version information. Check internet connection.")
         _emit("Loading local version")
 
@@ -452,51 +462,27 @@ def gmd(
 
         gmd_local_path = local_default
         saved_gmd = True
-        # Stata local fallback only guarantees a generic cached GMD.dta, not a dated vintage.
         selected_version = ""
 
-    if internet == "No":
+    if not has_internet:
         if sources in ("load", "list"):
-            _fail(
-                "You need access to the internet in order to fetch the sources list",
-                "If you have active internet access, specify the option network {stata gmd, network(yes) :gmd, network(yes)}",
-                code=498,
-            )
+            _fail_needs_internet("fetch the sources list")
         elif sources is not None and str(sources) != "":
-            _fail(
-                f"You need access to the internet in order to fetch the {sources} data",
-                "If you have active internet access, specify the option network {stata gmd, network(yes) :gmd, network(yes)}",
-                code=498,
-            )
+            _fail_needs_internet(f"fetch the {sources} data")
 
         if raw:
-            _fail(
-                "You need access to the internet in order to fetch the raw data",
-                "If you have active internet access, specify the option network {stata gmd, network(yes) :gmd, network(yes)}",
-                code=498,
-            )
+            _fail_needs_internet("fetch the raw data")
 
         if cite == "load":
-            _fail(
-                "You need access to the internet in order to load the sources to cite",
-                "If you have active internet access, specify the option network {stata gmd, network(yes) :gmd, network(yes)}",
-                code=498,
-            )
+            _fail_needs_internet("load the sources to cite")
         elif cite is not None and str(cite) != "":
-            _fail(
-                f"You need access to the internet in order to cite {cite}",
-                "If you have active internet access, specify the option network {stata gmd, network(yes) :gmd, network(yes)}",
-                code=498,
-            )
+            _fail_needs_internet(f"cite {cite}")
 
     if cite == "load":
         try:
             return _bib_df()
         except RuntimeError:
-            _fail(
-                'Unable to import the list of sources to cite. Please raise an issue at {browse "https://github.com/KMueller-Lab/Global-Macro-Database-Stata"}.',
-                code=498,
-            )
+            _fail_with_issue("the list of sources to cite")
 
     if cite is not None and str(cite) != "":
         cite_tokens = _tokens(str(cite))
@@ -504,7 +490,7 @@ def gmd(
             _fail("Only one citation can be retrieved at a time", code=498)
         key = cite_tokens[0]
 
-        bib = _bib_df().copy()
+        bib = _bib_df()
         if "source_name" not in bib.columns:
             _fail("source_name not found", code=111)
         if "citation" not in bib.columns:
@@ -513,22 +499,20 @@ def gmd(
         if not mask.any():
             _fail(
                 f"Source '{key}' does not exist.",
-                "To load the list of sources to cite: {stata gmd, cite(load):gmd, cite(load)}",
+                'To load the list of sources to cite: gmd(cite="load")',
                 code=498,
             )
         _emit(_format_bibtex_for_print(str(bib.loc[mask, "citation"].iloc[0])))
         return None
 
+    if sources is not None and str(sources) != "" and raw:
+        _emit("Note: raw option is specified, but this is implicit when using the sources option.")
+
     if sources in ("load", "list"):
-        if raw:
-            _emit("Note: raw option is specified, but this is implicit when using the sources option.")
         try:
             source_df = _source_list_df()
         except RuntimeError:
-            _fail(
-                'Unable to load source list. Please raise an issue at {browse "https://github.com/KMueller-Lab/Global-Macro-Database-Stata"}.',
-                code=498,
-            )
+            _fail_with_issue("source list")
         if sources == "load":
             _emit("Imported the list of sources.")
             return source_df
@@ -537,8 +521,6 @@ def gmd(
         return None
 
     if sources is not None and str(sources) != "":
-        if raw:
-            _emit("Note: raw option is specified, but this is implicit when using the sources option.")
 
         src_name = str(sources).strip()
         if len(src_name) == 7 and src_name.startswith("CS"):
@@ -551,30 +533,22 @@ def gmd(
 
         try:
             src_df = _read_dta_primary(f"clean/combined/{src_name}.dta")
-            source_load_ok = True
-            corrected_source = ""
         except RuntimeError:
-            source_load_ok = False
-            corrected_source = ""
+            # First load failed — try correcting the source name and retry
             try:
                 source_list = _source_list_df()
             except RuntimeError:
-                _emit('Unable to access variable list. Please raise an issue at {browse "https://github.com/KMueller-Lab/Global-Macro-Database-Stata"}.')
-            else:
-                mask = source_list["source_name"].astype(str).str.lower() == src_name.lower()
-                if mask.any():
-                    corrected_source = str(source_list.loc[mask, "source_name"].iloc[0])
-                else:
-                    _fail(
-                        "Invalid source name",
-                        "To load the list of sources: {stata gmd, sources(load):gmd, sources(load)}",
-                        code=498,
-                    )
-            src_df = pd.DataFrame()
-
-        if source_load_ok or corrected_source:
-            if corrected_source:
-                src_name = corrected_source
+                _emit(f"Unable to access source list. Please raise an issue at {_ISSUES_URL}")
+                src_df = pd.DataFrame()
+                return src_df
+            mask = source_list["source_name"].astype(str).str.lower() == src_name.lower()
+            if not mask.any():
+                _fail(
+                    "Invalid source name",
+                    'To load the list of sources: gmd(sources="load")',
+                    code=498,
+                )
+            src_name = str(source_list.loc[mask, "source_name"].iloc[0])
             try:
                 src_df = _read_dta_primary(f"clean/combined/{src_name}.dta")
             except RuntimeError:
@@ -584,44 +558,38 @@ def gmd(
                     code=498,
                 )
 
-            if anything != "":
-                src_col = f"{src_name}_{anything}"
-                if src_col in src_df.columns:
-                    keep_cols: List[str] = [col for col in ["ISO3", "year", src_col] if col in src_df.columns]
-                    if "countryname" in src_df.columns:
-                        keep_cols.append("countryname")
-                    if "id" in src_df.columns:
-                        keep_cols.append("id")
-                    out = src_df.loc[:, keep_cols].copy()
+        if anything != "":
+            src_col = f"{src_name}_{anything}"
+            if src_col in src_df.columns:
+                keep_cols: List[str] = [col for col in ["ISO3", "year", src_col] if col in src_df.columns]
+                if "countryname" in src_df.columns:
+                    keep_cols.append("countryname")
+                if "id" in src_df.columns:
+                    keep_cols.append("id")
+                out = src_df.loc[:, keep_cols]
 
-                    if country_arg != "":
-                        target = country_arg.upper()
-                        out = out.loc[out["ISO3"].astype(str).str.upper() == target]
-                    return out
+                if country_arg != "":
+                    target = country_arg.upper()
+                    out = out.loc[out["ISO3"].astype(str).str.upper() == target]
+                return out
 
-                avail = _strip_source_prefix_cols(src_df, src_name)
-                _emit(f"This source doesn't have data on {anything}. It has data on {' '.join(avail)}.")
-                return None
+            avail = _strip_source_prefix_cols(src_df, src_name)
+            _emit(f"This source doesn't have data on {anything}. It has data on {' '.join(avail)}.")
+            return None
 
-            return src_df
+        return src_df
 
     if vars == "load":
         try:
             return _varlist_df().copy()
         except RuntimeError:
-            _fail(
-                'Unable to access variable list. Please raise an issue at {browse "https://github.com/KMueller-Lab/Global-Macro-Database-Stata"}.',
-                code=498,
-            )
+            _fail_with_issue("variable list")
 
     if vars == "list":
         try:
-            var_df = _varlist_df().copy()
+            var_df = _varlist_df()
         except RuntimeError:
-            _fail(
-                'Unable to access variable list. Please raise an issue at {browse "https://github.com/KMueller-Lab/Global-Macro-Database-Stata"}.',
-                code=498,
-            )
+            _fail_with_issue("variable list")
         if "variable" not in var_df.columns:
             _fail("variable not found", code=111)
         _print_var_table(var_df)
@@ -636,8 +604,7 @@ def gmd(
         except RuntimeError:
             try:
                 var_df = _varlist_df()
-                # Mirror Stata's `confirm variable \`anything', exact` after importing varlist.csv:
-                # it checks whether `anything` is a column name, not a value in the variable list.
+                # Check if the variable exists as a column in varlist.csv (not as a row value)
                 is_valid = anything in set(var_df.columns)
             except RuntimeError:
                 is_valid = False
@@ -658,10 +625,7 @@ def gmd(
                 cty_df = _country_df().copy()
             except RuntimeError:
                 if mode == "load":
-                    _fail(
-                        'Unable to access country list. Please raise an issue at {browse "https://github.com/KMueller-Lab/Global-Macro-Database-Stata"}.',
-                        code=498,
-                    )
+                    _fail_with_issue("country list")
                 _fail("countryname not found", code=111)
             loaded_local = False
             if _is_fast_yes(fast):
@@ -678,11 +642,10 @@ def gmd(
         return cty_df
 
     check_id = anything.lower()
-    if check_id in {"iso3", "year", "id", "countryname"}:
+    if check_id in {c.lower() for c in _ID_COLS}:
         _fail(
             f"{anything} is an identifying variable loaded in the dataset, specify common variables",
-            "To print the list of variables: {stata gmd, vars(list):gmd, vars(list)}",
-            "To load the list of variables: {stata gmd, vars(load):gmd, vars(load)}",
+            *_VARS_HINTS,
             code=498,
         )
 
@@ -695,24 +658,17 @@ def gmd(
                 df = pd.read_stata(local_version, convert_categoricals=False)
             elif _is_fast_yes(fast):
                 try:
-                    df_remote = _read_dta_primary(f"distribute/GMD_{selected_version}.dta")
+                    df = _read_dta_primary(f"distribute/GMD_{selected_version}.dta")
                 except RuntimeError:
-                    _fail(
-                        'Unable to load the data. Please raise an issue at {browse "https://github.com/KMueller-Lab/Global-Macro-Database-Stata"}.',
-                        code=498,
-                    )
-                df_remote.to_stata(local_version, write_index=False)
-                df_remote.to_stata(_CACHE_DIR / "GMD.dta", write_index=False)
+                    _fail_with_issue("the data")
+                df.to_stata(local_version, write_index=False)
+                df.to_stata(_CACHE_DIR / "GMD.dta", write_index=False)
                 _emit(f"GMD dataset loaded and saved locally in {_CACHE_DIR}.")
-                df = pd.read_stata(local_version, convert_categoricals=False)
             else:
                 try:
                     df = _read_dta_primary(f"distribute/GMD_{selected_version}.dta")
                 except RuntimeError:
-                    _fail(
-                        'Unable to load the data. Please raise an issue at {browse "https://github.com/KMueller-Lab/Global-Macro-Database-Stata"}.',
-                        code=498,
-                    )
+                    _fail_with_issue("the data")
         else:
             df = _read_local_df(gmd_local_path)
 
@@ -726,41 +682,33 @@ def gmd(
                 _emit(f"{invalid_vars[0]} is not a valid variable code")
             else:
                 _emit(f"{' '.join(invalid_vars)} are not valid variable codes")
-            _fail(
-                "To print the list of variables: {stata gmd, vars(list):gmd, vars(list)}",
-                "To load the list of variables: {stata gmd, vars(load):gmd, vars(load)}",
-                code=498,
-            )
+            _fail(*_VARS_HINTS, code=498)
 
-        keep_cols = list(dict.fromkeys(col for col in ["ISO3", "year", "id", "countryname"] + anything_tokens if col in df.columns))
+        keep_cols = list(dict.fromkeys(col for col in list(_ID_COLS) + anything_tokens if col in df.columns))
         df = df.loc[:, keep_cols].copy()
         valid_count = df[anything_tokens].notna().sum(axis=1)
         if {"ISO3", "year"}.issubset(df.columns):
             ordered = df.assign(_valid_count=valid_count).sort_values(["ISO3", "year"])
             mask = ordered.groupby("ISO3", sort=False)["_valid_count"].cumsum() > 0
             df = ordered.loc[mask].drop(columns=["_valid_count"])
-        else:
-            df = df.assign(_valid_count=valid_count).drop(columns=["_valid_count"])
 
     if country_arg != "":
-        country_clean = " ".join(_tokens(country_arg.upper()))
-        c_tokens = _tokens(country_clean)
+        c_tokens = _tokens(country_arg.upper())
         if len(c_tokens) == 1:
             iso_code = c_tokens[0]
-            if "ISO3" not in df.columns or not (df["ISO3"].astype(str).str.upper() == iso_code).any():
+            iso_series = df["ISO3"].astype(str).str.upper() if "ISO3" in df.columns else pd.Series(dtype=str)
+            if iso_series.empty or not (iso_series == iso_code).any():
                 _fail(
                     "Country code is invalid or no data for this country in source.",
-                    "To print the list of countries: {stata gmd, country(list):gmd, country(list)}",
-                    "To load the list of countries: {stata gmd, country(load):gmd, country(load)}",
+                    *_COUNTRY_HINTS,
                     code=498,
                 )
-            df = df.loc[df["ISO3"].astype(str).str.upper() == iso_code]
+            df = df.loc[iso_series == iso_code]
         elif len(c_tokens) > 1:
             if "ISO3" not in df.columns:
                 _fail(
                     "Country code is invalid or no data for this country in source.",
-                    "To print the list of countries: {stata gmd, country(list):gmd, country(list)}",
-                    "To load the list of countries: {stata gmd, country(load):gmd, country(load)}",
+                    *_COUNTRY_HINTS,
                     code=498,
                 )
             iso_series = df["ISO3"].astype(str).str.upper()
@@ -779,12 +727,13 @@ def gmd(
                     _emit(f"{inv} is not a valid ISO3 code")
                 else:
                     _emit(f"{inv} are not valid ISO3 codes")
-                _emit("To print the list of countries: {stata gmd, country(list):gmd, country(list)}")
-                _emit("To load the list of countries: {stata gmd, country(load):gmd, country(load)}")
+                _emit(*_COUNTRY_HINTS)
                 df = df.loc[keep_mask]
                 raise GMDCommandError("Invalid ISO3 code", code=498, data=df.dropna(axis=1, how="all"))
 
             df = df.loc[keep_mask]
+
+    df = df.dropna(axis=1, how="all")
 
     _summary(
         df=df,
@@ -798,4 +747,4 @@ def gmd(
         saved_gmd=saved_gmd,
     )
 
-    return df.dropna(axis=1, how="all")
+    return df

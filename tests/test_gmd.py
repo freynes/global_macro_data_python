@@ -321,15 +321,16 @@ class TestCountryFilter:
         assert "ISO3" in cty_df.columns
         assert "countryname" in cty_df.columns
 
-    def test_country_list_prints_table(self, capsys):
-        result = gmd(country="list", fast="yes", version="2025_12")
+    def test_country_list_always_prints_table(self, capsys):
+        result = gmd(country="list")
         out = capsys.readouterr().out
-        assert result is None or isinstance(result, pd.DataFrame)
+        assert result is None
         assert "Available countries:" in out
 
     def test_iso_parameter_aliases_country_list(self, capsys):
-        result = gmd(iso=True, fast="yes", version="2025_12")
+        result = gmd(iso=True)
         out = capsys.readouterr().out
+        assert result is None
         assert "Available countries:" in out
 
 
@@ -344,29 +345,18 @@ class TestVarsOption:
         assert {"variables", "units", "definition"}.issubset(var_df.columns)
 
     def test_vars_list_prints_table(self, capsys):
-        var_df = gmd(vars="load")
-        if "variable" in var_df.columns:
-            gmd(vars="list")
-            out = capsys.readouterr().out
-            assert "Available variables:" in out
-            assert "Definition" in out
-            assert "nGDP" in out
-        else:
-            # varlist.csv uses "variables" column — gmd(vars="list") raises code 111
-            with pytest.raises(GMDCommandError) as exc:
-                gmd(vars="list")
-            assert exc.value.code == 111
+        result = gmd(vars="list")
+        out = capsys.readouterr().out
+        assert result is None
+        assert "Available variables:" in out
+        assert "Definition" in out
+        assert "nGDP" in out
 
     def test_vars_true_aliases_list(self, capsys):
-        var_df = gmd(vars="load")
-        if "variable" in var_df.columns:
-            gmd(vars=True)
-            out = capsys.readouterr().out
-            assert "Available variables:" in out
-        else:
-            with pytest.raises(GMDCommandError) as exc:
-                gmd(vars=True)
-            assert exc.value.code == 111
+        result = gmd(vars=True)
+        out = capsys.readouterr().out
+        assert result is None
+        assert "Available variables:" in out
 
     def test_vars_false_is_noop(self, capsys):
         df = gmd(vars=False, version="2025_12")
@@ -405,7 +395,8 @@ class TestRaw:
         with pytest.raises(GMDCommandError):
             gmd(raw=True, version="2025_12")
 
-    def test_raw_fallback_checks_varlist_columns(self, monkeypatch):
+    def test_raw_fallback_valid_variable_reports_no_raw_data(self, monkeypatch):
+        """When raw CSV is missing but the variable exists in varlist, report 'no raw data'."""
         original_read_csv_primary = gmd_module._read_csv_primary
 
         def _fake_read_csv_primary(path, **kwargs):
@@ -425,6 +416,29 @@ class TestRaw:
 
         with pytest.raises(GMDCommandError) as exc:
             gmd(variables="rGDP", raw=True, version="2025_12")
+        assert str(exc.value) == "Variable does not have raw data."
+
+    def test_raw_fallback_invalid_variable_reports_not_valid(self, monkeypatch):
+        """When raw CSV is missing and the variable isn't in varlist, report 'not valid'."""
+        original_read_csv_primary = gmd_module._read_csv_primary
+
+        def _fake_read_csv_primary(path, **kwargs):
+            if path.startswith("distribute/"):
+                raise RuntimeError("forced failure")
+            return original_read_csv_primary(path, **kwargs)
+
+        def _fake_varlist_df():
+            return pd.DataFrame({
+                "variables": ["rGDP", "infl"],
+                "units": ["in LC", "in %"],
+                "definition": ["Real GDP", "Inflation"],
+            })
+
+        monkeypatch.setattr(gmd_module, "_read_csv_primary", _fake_read_csv_primary)
+        monkeypatch.setattr(gmd_module, "_varlist_df", _fake_varlist_df)
+
+        with pytest.raises(GMDCommandError) as exc:
+            gmd(variables="FAKE_VAR", raw=True, version="2025_12")
         assert str(exc.value) == "Specified variable is not valid."
 
 

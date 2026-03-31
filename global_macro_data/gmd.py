@@ -590,8 +590,6 @@ def gmd(
             var_df = _varlist_df()
         except RuntimeError:
             _fail_with_issue("variable list")
-        if "variable" not in var_df.columns:
-            _fail("variable not found", code=111)
         _print_var_table(var_df)
         return None
 
@@ -604,8 +602,9 @@ def gmd(
         except RuntimeError:
             try:
                 var_df = _varlist_df()
-                # Check if the variable exists as a column in varlist.csv (not as a row value)
-                is_valid = anything in set(var_df.columns)
+                # Check if the variable is listed in the varlist values
+                var_col = "variable" if "variable" in var_df.columns else "variables"
+                is_valid = var_col in var_df.columns and anything in set(var_df[var_col].astype(str))
             except RuntimeError:
                 is_valid = False
             if not is_valid:
@@ -619,27 +618,19 @@ def gmd(
         local_country = _CACHE_DIR / "countrylist.dta"
         if local_country.exists():
             cty_df = pd.read_stata(local_country, convert_categoricals=False)
-            loaded_local = True
         else:
             try:
                 cty_df = _country_df().copy()
             except RuntimeError:
-                if mode == "load":
-                    _fail_with_issue("country list")
-                _fail("countryname not found", code=111)
-            loaded_local = False
+                _fail_with_issue("country list")
             if _is_fast_yes(fast):
                 _emit("Saving countrylist dataframe locally")
                 cty_df.to_stata(local_country, write_index=False)
-            else:
-                return cty_df
 
         if mode == "load":
             return cty_df
-        if loaded_local or _is_fast_yes(fast):
-            _print_country_table(cty_df)
-            return None
-        return cty_df
+        _print_country_table(cty_df)
+        return None
 
     check_id = anything.lower()
     if check_id in {c.lower() for c in _ID_COLS}:

@@ -1,10 +1,11 @@
-﻿from pathlib import Path
+from pathlib import Path
 import sys
 import importlib
 
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 sys.path.insert(0, str(REPO_ROOT))
 
 gmd_module = importlib.import_module("global_macro_data.gmd")
@@ -31,36 +32,43 @@ def _clear_all_caches():
             cache_fn.cache_clear()
 
 
-@pytest.fixture(autouse=True)
-def local_data_backend(monkeypatch):
-    """Route all GMD fetches to local Stata repo files for deterministic tests."""
-    local_root = REPO_ROOT
-    stata_root_candidates = [
+def _resolve_data_root():
+    """Find the best available data root for tests.
+
+    Priority:
+    1. Bundled fixtures in tests/fixtures/ (always available, self-contained)
+    2. Sibling Stata repo checkout (richer data, optional)
+    """
+    if (FIXTURES_DIR / "helpers").exists() and (FIXTURES_DIR / "final").exists():
+        return FIXTURES_DIR
+
+    for candidate in [
         REPO_ROOT.parent / "Global-Macro-Database-Stata-main",
         REPO_ROOT.parent / "Global-Macro-Database-Stata",
-    ]
+    ]:
+        if (candidate / "data" / "helpers").exists():
+            return candidate / "data"
 
-    if (local_root / "data" / "final").exists() and (local_root / "data" / "clean").exists():
-        data_root = local_root
-    else:
-        data_root = None
-        for candidate in stata_root_candidates:
-            if candidate.exists():
-                data_root = candidate
-                break
-        if data_root is None:
-            pytest.skip("Global-Macro-Database-Stata repo not found next to Python repo")
+    return None
+
+
+@pytest.fixture(autouse=True)
+def local_data_backend(monkeypatch):
+    """Route all GMD fetches to local files for deterministic tests."""
+    data_root = _resolve_data_root()
+    if data_root is None:
+        pytest.skip("No test data available (neither fixtures/ nor sibling Stata repo)")
 
     def _map_path(relative_path: str) -> Path:
         rel = relative_path.replace("\\", "/")
         if rel.startswith("helpers/"):
-            return data_root / "data" / rel
+            return data_root / rel
         if rel.startswith("distribute/"):
             filename = rel.split("/", 1)[1]
-            return data_root / "data" / "final" / filename
+            return data_root / "final" / filename
         if rel.startswith("clean/combined/"):
             filename = rel.split("/", 2)[2]
-            return data_root / "data" / "clean" / filename
+            return data_root / "clean" / filename
         raise RuntimeError(f"Unhandled resource path in test backend: {relative_path}")
 
     def _fetch_local(relative_path: str):

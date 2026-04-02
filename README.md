@@ -10,8 +10,22 @@ This package provides Python access to the Global Macro Database (GMD).
 
 ## Installation
 
+Install the latest published release from PyPI:
+
 ```bash
 pip install global-macro-data
+```
+
+Install directly from GitHub:
+
+```bash
+pip install git+https://github.com/KMueller-Lab/Global-Macro-Database-Python.git
+```
+
+Install a specific tagged release from GitHub:
+
+```bash
+pip install git+https://github.com/KMueller-Lab/Global-Macro-Database-Python.git@v2.0.0
 ```
 
 ## Quick Start

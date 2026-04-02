@@ -1,85 +1,100 @@
 # The Global Macro Database (Python Package)
+
 <a href="https://www.globalmacrodata.com" target="_blank" rel="noopener noreferrer">
     <img src="https://img.shields.io/badge/Website-Visit-blue?style=flat&logo=google-chrome" alt="Website Badge">
 </a>
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-[Link to paper 📄](https://www.globalmacrodata.com/research-paper.html)
+This package provides Python access to the Global Macro Database (GMD).
 
-This repository complements paper, **Müller, Xu, Lehbib, and Chen (2025)**, which introduces a panel dataset of **46 macroeconomic variables across 243 countries** from historical records beginning in the year **1086** until **2024**, including projections through the year **2030**.
+## Installation
 
-## Features
+Install the latest published release from PyPI:
 
-- **Unparalleled Coverage**: Combines data from **32 contemporary sources** (e.g., IMF, World Bank, OECD) with **78 historical datasets**.
-- **Extensive Variables**: GDP, inflation, government finance, trade, employment, interest rates, and more.
-- **Harmonized Data**: Resolves inconsistencies and splices all available data together.
-- **Scheduled Updates**: Regular releases ensure data reliability.
-- **Full Transparency**: All code is open source and available in this repository.
-- **Accessible Formats**: Provided in `.dta`, `.csv` and as **<a href="https://github.com/KMueller-Lab/Global-Macro-Database" target="_blank" rel="noopener noreferrer">Stata</a>
-/<a href="https://github.com/Yangbo-Wang/global_macro_data_python" target="_blank" rel="noopener noreferrer">Python</a>/<a href="https://github.com/Yangbo-Wang/global_macro_data_R" target="_blank" rel="noopener noreferrer">R</a> package**.
-
-## Data access
-
-<a href="https://www.globalmacrodata.com/data.html" target="_blank" rel="noopener noreferrer">Download via website</a>
-
-**Python package:**
-```
-pip install global_macro_data
+```bash
+pip install global-macro-data
 ```
 
-**How to use (examples)**
+Install directly from GitHub:
+
+```bash
+pip install git+https://github.com/KMueller-Lab/Global-Macro-Database-Python.git
+```
+
+Install a specific tagged release from GitHub:
+
+```bash
+pip install git+https://github.com/KMueller-Lab/Global-Macro-Database-Python.git@v2.0.0
+```
+
+## Quick Start
+
 ```python
 from global_macro_data import gmd
 
-# Get data from latest available version
-df = gmd()
+# Latest dataset
+full_df = gmd()
 
-# Get data from a specific version
-df = gmd(version="2025_01")
+# Specific vintage
+df = gmd(version="2025_12")
 
-# Get data for a specific country
-df = gmd(country="USA")
+# Filter countries and variables
+subset = gmd(
+    version="2025_12",
+    country=["USA", "CHN"],
+    variables=["rGDP", "infl", "unemp"],
+)
 
-# Get data for multiple countries
-df = gmd(country=["USA", "CHN", "DEU"])
+# Raw source-level data for one variable
+raw_rgdp = gmd(variables="rGDP", raw=True, version="2025_12")
 
-# Get specific variables
-df = gmd(variables=["rGDP", "infl", "unemp"])
+# Load helper tables
+varlist_df = gmd(vars="load")
+country_df = gmd(country="load")
+source_df = gmd(sources="load")
+bib_df = gmd(cite="load")
 
-# Combine parameters
-df = gmd(version="2025_01", country=["USA", "CHN"], variables=["rGDP", "unemp", "CPI"])
+# Print citations
+gmd(cite="GMD")
+gmd(print_option="GMD")
 ```
 
-## Parameters
-- **version (str)**: Dataset version in format 'YYYY_MM' (e.g., '2025_01'). If None, the latest dataset is used.
-- **country (str or list)**: ISO3 country code(s) (e.g., "SGP" or ["MRT", "SGP"]). If None, returns all countries.
-- **variables (list)**: List of variable codes to include (e.g., ["rGDP", "unemp"]). If None, all variables are included.
-- **show_preview (bool)**: If True and no other parameters are provided, shows a preview.
+## API Reference
 
-## Release schedule 
+The `gmd()` function supports the following options:
 
-| Release Date | Details          |
-|--------------|------------------|
-| 2025-01-30   | Initial release: v2025-01 |
-| 2025-04-01   | v2025-04         |
-| 2025-07-01   | v2025-09         |
-| 2025-10-01   | v2025-12         |
-| 2026-01-01   | v2026-03         |
+| Parameter | Values | Description |
+|-----------|--------|-------------|
+| `version` | `"YYYY_MM"`, `"current"`, `"list"` | Select data vintage |
+| `country` | ISO3 code(s), `"load"`, `"list"` | Filter by country |
+| `variables` | Variable code(s) | Select specific variables |
+| `raw` | `True` / `False` | Load raw source-level data |
+| `vars` | `"load"`, `"list"` | Load or display variable definitions |
+| `sources` | Source name, `"load"`, `"list"` | Query specific data sources |
+| `cite` | Source key, `"load"` | Retrieve BibTeX citations |
+| `print_option` | `"GMD"`, `"Stata"` | Print APA-style citations |
+| `fast` | `"yes"` or `True` | Cache data locally for faster reloading |
+| `network` | `"yes"` | Override network detection |
+
+Helper functions are also available:
+
+- `get_available_versions()` -- list all data vintages
+- `get_current_version()` -- get the latest version string
+- `list_variables()` -- print the variable table
+- `list_countries()` -- print the country table
 
 ## Citation
 
-To cite this dataset, please use the following reference:
+When using the Global Macro Database, please cite:
 
 ```bibtex
-@techreport{mueller2025global, 
-    title = {The Global Macro Database: A New International Macroeconomic Dataset}, 
-    author = {Müller, Karsten and Xu, Chenzi and Lehbib, Mohamed and Chen, Ziliang}, 
-    year = {2025}, 
-    type = {Working Paper}
+@techreport{mueller2025global,
+    title = {The Global Macro Database: A New International Macroeconomic Dataset},
+    author = {M{\"u}ller, Karsten and Xu, Chenzi and Lehbib, Mohamed and Chen, Ziliang},
+    year = {2025},
+    institution = {National Bureau of Economic Research},
+    type = {Working Paper},
+    number = {33714}
 }
 ```
-
-## Acknowledgments
-
-The development of the Global Macro Database would not have been possible without the generous funding provided by the Singapore Ministry of Education (MOE) through the PYP grants (WBS A-0003319-01-00 and A-0003319-02-00), a Tier 1 grant (A-8001749- 00-00), and the NUS Risk Management Institute (A-8002360-00-00). This financial support laid the foundation for the successful completion of this extensive project.
